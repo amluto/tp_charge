@@ -5,7 +5,7 @@
  *  out <smapi port>, al
  *  out 0x4f, al
  *
- * The SMAPI call takes input in ebc, ecx, edi, and esi.
+ * The SMAPI call takes input in ebx, ecx, edi, and esi.
  *
  * On error, ah will contain a nonzero value.  0xA6 apparently means
  * "try again".
@@ -14,7 +14,7 @@
  * (little endian) and CMOS bytes 0x7E and 0x7F will contain the port
  * (also little endian).
  *
- * On X200s, the port is 0xB2 (for usermode testing).
+ * On X200s and X220, the port is 0xB2 (for usermode testing).
  *
  * ebx should contain:
  *  0x2116 to get the start threshold
@@ -61,6 +61,8 @@ int get_threshold(int bat, int start, uint8_t *val)
   errcode = (eax >> 8) & 0xFF;
   if (errcode == 0xA6)
     return -EAGAIN;
+  else if (errcode == 0x53)
+    return -ENOSYS;
   else if (errcode != 0)
     return -EIO;
 
@@ -88,6 +90,8 @@ int set_threshold(int bat, int start, uint8_t val)
   errcode = (eax >> 8) & 0xFF;
   if (errcode == 0xA6)
     return -EAGAIN;
+  else if (errcode == 0x53)
+    return -ENOSYS;
   else if (errcode != 0)
     return -EIO;
 
@@ -120,6 +124,7 @@ int main(int argc, char **argv)
 {
   uint8_t start, stop;
   int err;
+  int ret;
 
   fprintf(stderr, "Request IO permissions.\n");
 
@@ -134,12 +139,14 @@ int main(int argc, char **argv)
   }
 
   if (argc == 1) {
+    ret = 0;
     fprintf(stderr, "Get BAT0 start.\n");
     err = get_threshold(0, 1, &start);
     if (err != 0) {
       errno = -err;
       perror("get_threshold");
-      return 1;
+      ret = 1;
+      start = -1;
     }
 
     fprintf(stderr, "Get BAT0 stop.\n");
@@ -147,11 +154,14 @@ int main(int argc, char **argv)
     if (err != 0) {
       errno = -err;
       perror("get_threshold");
-      return 1;
+      ret = 1;
+      stop = -1;
     }
 
     printf("start = %d, stop = %d\n", (int)start, (int)stop);
+    return ret;
   } else if (argc == 3) {
+    ret = 0;
     start = (uint8_t)atoi(argv[1]);
     stop = (uint8_t)atoi(argv[2]);
 
@@ -160,7 +170,7 @@ int main(int argc, char **argv)
     if (err != 0) {
       errno = -err;
       perror("set_threshold");
-      return 1;
+      ret = 1;
     }
 
     fprintf(stderr, "Set BAT0 stop.\n");
@@ -168,8 +178,10 @@ int main(int argc, char **argv)
     if (err != 0) {
       errno = -err;
       perror("set_threshold");
-      return 1;
+      ret = 1;
     }
+
+    return ret;
   }
 
   return 0;
