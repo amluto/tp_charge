@@ -1,11 +1,15 @@
 #include <linux/platform_device.h>
-#include <linux/init.h>
 #include <linux/module.h>
-#include <linux/rtc.h>
+#include <linux/string.h>
 #include <linux/sysfs.h>
+#include <linux/init.h>
+#include <linux/dmi.h>
+#include <linux/rtc.h>
 #include <asm/rtc.h>
 
+/* Magic number is CMOS to detect SMAPI */
 #define SMAPI_MAGIC 0x5349
+
 static struct platform_device *tp_charge_pdev;
 static short smapi_port;
 static bool has_smapi;
@@ -277,6 +281,10 @@ static bool is_real_resource(struct resource *r)
 static int __init tp_charge_init(void)
 {
 	int err;
+
+	/* Don't even try to load except on ThinkPads. */
+	if (!strstr(dmi_get_system_info(DMI_PRODUCT_VERSION), "ThinkPad"))
+		return -ENODEV;
 
 	err = detect_smapi();
 	if (err)
